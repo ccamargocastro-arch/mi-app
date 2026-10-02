@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Control Financiero</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        primary: '#4F46E5',
+                        success: '#10B981',
+                        danger: '#EF4444',
+                        card: '#FFFFFF',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        .chart-container { position: relative; height: 280px; width: 100%; }
+        
+        /* Ocultar elementos para modales */
+        .hidden { display: none !important; }
+        
+        /* Animaciones para modales */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-overlay { animation: fadeIn 0.2s ease-out forwards; }
+        .modal-content { animation: slideUp 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased pb-20 selection:bg-indigo-100 selection:text-indigo-900">
+
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        
+        <!-- Encabezado -->
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Mi Dinero</h1>
+                <p class="text-gray-500 text-sm">Gestión personal</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="abrirModalExportarImportar()" class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="Exportar / Importar">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Panel de Saldos Principal -->
+        <div class="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+            <div class="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-white opacity-10 pointer-events-none"></div>
+            
+            <div class="relative z-10 flex flex-col sm:flex-row justify-between items-center gap-6">
+                <div class="text-center sm:text-left w-full">
+                    <div class="text-indigo-100 text-sm font-medium uppercase tracking-wider mb-1">Saldo Total</div>
+                    <div id="saldo-total" class="text-4xl sm:text-5xl font-bold tracking-tight">$0</div>
+                </div>
+                
+                <div class="flex gap-4 w-full sm:w-auto">
+                    <div class="flex-1 sm:w-32 bg-white/10 rounded-2xl p-3 backdrop-blur-sm text-center">
+                        <div class="text-indigo-100 text-xs font-medium mb-1 flex items-center justify-center gap-1">
+                            <svg class="w-3 h-3 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                            Mes
+                        </div>
+                        <div id="total-ingresos-mes" class="text-lg font-bold text-emerald-300">$0</div>
+                    </div>
+                    <div class="flex-1 sm:w-32 bg-white/10 rounded-2xl p-3 backdrop-blur-sm text-center">
+                        <div class="text-indigo-100 text-xs font-medium mb-1 flex items-center justify-center gap-1">
+                            <svg class="w-3 h-3 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                            Mes
+                        </div>
+                        <div id="total-gastos-mes" class="text-lg font-bold text-rose-300">$0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navegación por pestañas -->
+        <div class="flex space-x-2 bg-gray-200/50 p-1 rounded-xl">
+            <button onclick="cambiarPestana('movimientos')" id="tab-movimientos" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-white shadow-sm text-indigo-700 transition-all">Movimientos</button>
+            <button onclick="cambiarPestana('graficos')" id="tab-graficos" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 transition-all">Gráficos</button>
+        </div>
+
+        <!-- Vista: Movimientos -->
+        <div id="vista-movimientos" class="space-y-6 block">
+            
+            <!-- Barra de búsqueda -->
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <input type="text" id="buscador" oninput="buscarRegistros()" placeholder="Buscar por nota, categoría o monto..." class="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors">
+            </div>
+
+            <!-- Lista de Movimientos -->
+            <div class="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-gray-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Historial</h3>
+                    <span id="contador-registros" class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">0 registros</span>
+                </div>
+                
+                <div id="lista-historial" class="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                    <!-- Los registros se inyectarán aquí vía JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista: Gráficos -->
+        <div id="vista-graficos" class="space-y-6 hidden">
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Balance Mensual</h3>
+                <div class="chart-container">
+                    <canvas id="graficoMeses"></canvas>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Gastos por Categoría (Mes Actual)</h3>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="graficoCategorias"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Botón Flotante para Nuevo Registro -->
+    <button onclick="abrirModalRegistro()" class="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+    </button>
+
+    <!-- Modal: Formulario de Registro -->
+    <div id="modal-registro" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <!-- Overlay -->
+        <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm modal-overlay" onclick="cerrarModalRegistro()"></div>
+        
+        <!-- Contenido -->
+        <div class="bg-white w-full sm:w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl relative z-10 modal-content max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-5">
+                <h2 id="titulo-modal-registro" class="text-xl font-bold text-gray-900">Nuevo Movimiento</h2>
+                <button onclick="cerrarModalRegistro()" class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <form id="form-registro" class="space-y-4">
+                <input type="hidden" id="registro-id">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" id="btn-tipo-gasto" onclick="seleccionarTipo('gasto')" class="py-3 px-4 rounded-xl border-2 border-rose-500 bg-rose-50 text-rose-700 font-semibold transition-all">Gasto</button>
+                    <button type="button" id="btn-tipo-ingreso" onclick="seleccionarTipo('ingreso')" class="py-3 px-4 rounded-xl border-2 border-transparent bg-gray-50 text-gray-500 font-medium hover:bg-gray-100 transition-all">Ingreso</button>
+                </div>
+                <input type="hidden" id="tipo" value="gasto">
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Monto ($)</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span class="text-gray-500 font-medium">$</span>
+                        </div>
+                        <input type="number" id="monto" inputmode="decimal" placeholder="0" required min="0.01" step="0.01" class="w-full pl-8 pr-4 py-3 text-lg font-semibold bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                    <select id="categoria" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors cursor-pointer">
+                        <!-- Opciones dinámicas -->
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                        <input type="date" id="fecha" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nota</label>
+                        <input type="text" id="nota" placeholder="Opcional..." class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors">
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-guardar" class="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 px-4 rounded-xl shadow-md transition-colors flex justify-center items-center gap-2">
+                    Guardar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmación Eliminar -->
+    <div id="modal-confirmacion" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm modal-overlay" onclick="cerrarModalConfirmacion()"></div>
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl relative z-10 modal-content text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-rose-100 mb-4">
+                <svg class="h-6 w-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-2">¿Eliminar registro?</h3>
+            <p class="text-sm text-gray-500 mb-6">Esta acción no se puede deshacer.</p>
+            <div class="flex gap-3">
+                <button onclick="cerrarModalConfirmacion()" class="flex-1 bg-white border border-gray-300 text-gray-700 py-2.5 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors">Cancelar</button>
+                <button id="btn-confirmar-eliminar" class="flex-1 bg-rose-600 text-white py-2.5 px-4 rounded-xl font-medium hover:bg-rose-700 transition-colors shadow-sm">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Exportar / Importar -->
+    <div id="modal-datos" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm modal-overlay" onclick="cerrarModalExportarImportar()"></div>
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl relative z-10 modal-content">
+            <div class="flex justify-between items-center mb-5">
+                <h2 class="text-xl font-bold text-gray-900">Respaldo de Datos</h2>
+                <button onclick="cerrarModalExportarImportar()" class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                    <h3 class="font-semibold text-indigo-900 mb-1">Exportar</h3>
+                    <p class="text-sm text-indigo-700 mb-3">Guarda una copia de seguridad de todos tus datos en un archivo JSON.</p>
+                    <button onclick="exportarDatos()" class="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-xl font-medium hover:bg-indigo-700 transition-colors flex justify-center items-center gap-2 shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Descargar Copia
+                    </button>
+                </div>
+
+                <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200">
+                    <h3 class="font-semibold text-gray-900 mb-1">Importar</h3>
+                    <p class="text-sm text-gray-500 mb-3">Restaura tus datos desde un archivo JSON previo. <strong class="text-rose-600">Esto reemplazará los datos actuales.</strong></p>
+                    <input type="file" id="input-importar" accept=".json" class="hidden" onchange="procesarImportacion(event)">
+                    <button onclick="document.getElementById('input-importar').click()" class="w-full bg-white border-2 border-gray-300 text-gray-700 py-2.5 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors flex justify-center items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        Seleccionar Archivo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 transform -translate-y-24 opacity-0 transition-all duration-300 pointer-events-none z-[60]">
+        <svg id="toast-icon-success" class="w-5 h-5 text-emerald-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <svg id="toast-icon-error" class="w-5 h-5 text-rose-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span id="toast-message" class="font-medium text-sm">Mensaje</span>
+    </div>
+
+    <script>
+        // --- CONSTANTES Y ESTADO ---
+        const categorias = {
+            gasto: ["Vivienda", "Alimentación", "Transporte", "Servicios", "Salud", "Educación", "Entretenimiento", "Ropa", "Otros Gastos"],
+            ingreso: ["Salario", "Negocio", "Inversiones", "Ventas", "Otros Ingresos"]
+        };
+
+        const formatoMoneda = new Intl.NumberFormat('es-CO', { 
+            style: 'currency', currency: 'COP', maximumFractionDigits: 0 
+        });
+
+        let db;
+        const dbName = "MiControlFinancieroDB";
+        const storeName = "registros";
+        let graficoMesesInstancia = null;
+        let graficoCategoriasInstancia = null;
+        let registroAEliminar = null;
+
+        // --- INICIALIZACIÓN ---
+        window.onload = () => {
+            initDB().then(() => {
+                actualizarCategoriasSelect();
+                cargarDatosEnInterfaz();
+                
+                // Setear fecha actual por defecto en el formulario
+                const hoy = new Date();
+                const offset = hoy.getTimezoneOffset() * 60000;
+                const localISOTime = (new Date(hoy - offset)).toISOString().split('T')[0];
+                document.getElementById('fecha').value = localISOTime;
+            }).catch(error => {
+                showToast("Error al inicializar la base de datos", "error");
+                console.error(error);
+            });
+        };
+
+        // --- MANEJO DE INDEXEDDB ---
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, 1);
+
+                request.onerror = event => {
+                    console.error("IndexedDB Error:", event.target.errorCode);
+                    reject("Error al abrir IndexedDB");
+                };
+
+                request.onsuccess = event => {
+                    db = event.target.result;
+                    resolve();
+                };
+
+                request.onupgradeneeded = event => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(storeName)) {
+                        // Crear object store con 'id' como primary key autogenerada si es necesario, 
+                        // pero usaremos un timestamp como ID manual para facilitar exportación/importación.
+                        const store = db.createObjectStore(storeName, { keyPath: "id" });
+                        store.createIndex("fecha", "fecha", { unique: false });
+                        store.createIndex("tipo", "tipo", { unique: false });
+                    }
+                };
+            });
+        }
+
+        // Promesa genérica para obtener todos los registros
+        function getAllRecords() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction([storeName], "readonly");
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // --- UI INTERFAZ PRINCIPAL ---
+        function cambiarPestana(pestana) {
+            const vistas = ['movimientos', 'graficos'];
+            const tabs = ['tab-movimientos', 'tab-graficos'];
+
+            vistas.forEach(v => document.getElementById(`vista-${v}`).classList.add('hidden'));
+            tabs.forEach(t => {
+                document.getElementById(t).classList.remove('bg-white', 'shadow-sm', 'text-indigo-700');
+                document.getElementById(t).classList.add('text-gray-600');
+            });
+
+            document.getElementById(`vista-${pestana}`).classList.remove('hidden');
+            const tabActivo = document.getElementById(`tab-${pestana}`);
+            tabActivo.classList.remove('text-gray-600');
+            tabActivo.classList.add('bg-white', 'shadow-sm', 'text-indigo-700');
+
+            if (pestana === 'graficos') {
+                renderizarGraficos();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            const iconSuccess = document.getElementById('toast-icon-success');
+            const iconError = document.getElementById('toast-icon-error');
+            
+            msgEl.textContent = message;
+            
+            if (type === 'success') {
+                iconSuccess.classList.remove('hidden');
+                iconError.classList.add('hidden');
+                toast.classList.replace('bg-rose-900', 'bg-gray-900');
+            } else {
+                iconSuccess.classList.add('hidden');
+                iconError.classList.remove('hidden');
+                toast.classList.replace('bg-gray-900', 'bg-rose-900');
+            }
+            
+            // Animación
+            toast.classList.remove('-translate-y-24', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('-translate-y-24', 'opacity-0');
+            }, 3000);
+        }
+
+        // --- LÓGICA DEL FORMULARIO Y MODAL ---
+        function abrirModalRegistro(id = null) {
+            document.getElementById('modal-registro').classList.remove('hidden');
+            const form = document.getElementById('form-registro');
+            
+            if (id) {
+                // Modo Edición
+                document.getElementById('titulo-modal-registro').textContent = 'Editar Movimiento';
+                document.getElementById('btn-guardar').textContent = 'Actualizar';
+                
+                const transaction = db.transaction([storeName], "readonly");
+                const store = transaction.objectStore(storeName);
+                const request = store.get(id);
+                
+                request.onsuccess = () => {
+                    const data = request.result;
+                    if(data) {
+                        document.getElementById('registro-id').value = data.id;
+                        seleccionarTipo(data.tipo); // Actualiza select categorías
+                        document.getElementById('monto').value = data.monto;
+                        document.getElementById('fecha').value = data.fecha;
+                        document.getElementById('categoria').value = data.categoria;
+                        document.getElementById('nota').value = data.nota || '';
+                    }
+                };
+            } else {
+                // Modo Nuevo
+                document.getElementById('titulo-modal-registro').textContent = 'Nuevo Movimiento';
+                document.getElementById('btn-guardar').textContent = 'Guardar';
+                form.reset();
+                document.getElementById('registro-id').value = '';
+                
+                const hoy = new Date();
+                const offset = hoy.getTimezoneOffset() * 60000;
+                const localISOTime = (new Date(hoy - offset)).toISOString().split('T')[0];
+                document.getElementById('fecha').value = localISOTime;
+                
+                seleccionarTipo('gasto');
+            }
+        }
+
+        function cerrarModalRegistro() {
+            document.getElementById('modal-registro').classList.add('hidden');
+        }
+
+        function seleccionarTipo(tipo) {
+            document.getElementById('tipo').value = tipo;
+            const btnGasto = document.getElementById('btn-tipo-gasto');
+            const btnIngreso = document.getElementById('btn-tipo-ingreso');
+
+            if (tipo === 'gasto') {
+                btnGasto.classList.replace('border-transparent', 'border-rose-500');
+                btnGasto.classList.replace('bg-gray-50', 'bg-rose-50');
+                btnGasto.classList.replace('text-gray-500', 'text-rose-700');
+                
+                btnIngreso.classList.replace('border-emerald-500', 'border-transparent');
+                btnIngreso.classList.replace('bg-emerald-50', 'bg-gray-50');
+                btnIngreso.classList.replace('text-emerald-700', 'text-gray-500');
+            } else {
+                btnIngreso.classList.replace('border-transparent', 'border-emerald-500');
+                btnIngreso.classList.replace('bg-gray-50', 'bg-emerald-50');
+                btnIngreso.classList.replace('text-gray-500', 'text-emerald-700');
+                
+                btnGasto.classList.replace('border-rose-500', 'border-transparent');
+                btnGasto.classList.replace('bg-rose-50', 'bg-gray-50');
+                btnGasto.classList.replace('text-rose-700', 'text-gray-500');
+            }
+            actualizarCategoriasSelect();
+        }
+
+        function actualizarCategoriasSelect() {
+            const tipo = document.getElementById('tipo').value;
+            const selectCat = document.getElementById('categoria');
+            selectCat.innerHTML = '';
+            
+            categorias[tipo].forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                selectCat.appendChild(option);
+            });
+        }
+
+        document.getElementById('form-registro').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const montoValor = parseFloat(document.getElementById('monto').value);
+            if (isNaN(montoValor) || montoValor <= 0) {
+                showToast("Por favor ingresa un monto válido mayor a 0.", "error");
+                return;
+            }
+
+            const idField = document.getElementById('registro-id').value;
+            const registro = {
+                id: idField ? parseInt(idField) : Date.now(), // Usa ID existente si edita, sino nuevo
+                tipo: document.getElementById('tipo').value,
+                monto: montoValor,
+                categoria: document.getElementById('categoria').value,
+                fecha: document.getElementById('fecha').value,
+                nota: document.getElementById('nota').value.trim()
+            };
+
+            const transaction = db.transaction([storeName], "readwrite");
+            const store = transaction.objectStore(storeName);
+            
+            let request;
+            if (idField) {
+                request = store.put(registro); // Actualiza si la key existe
+            } else {
+                request = store.add(registro); // Añade nuevo
+            }
+
+            request.onsuccess = () => {
+                cerrarModalRegistro();
+                cargarDatosEnInterfaz();
+                showToast(idField ? "Registro actualizado." : "Registro guardado exitosamente.");
+            };
+
+            request.onerror = () => {
+                showToast("Error al guardar el registro en la base de datos.", "error");
+            };
+        });
+
+        // --- ELIMINAR ---
+        function confirmarEliminar(id) {
+            registroAEliminar = id;
+            document.getElementById('modal-confirmacion').classList.remove('hidden');
+        }
+
+        function cerrarModalConfirmacion() {
+            registroAEliminar = null;
+            document.getElementById('modal-confirmacion').classList.add('hidden');
+        }
+
+        document.getElementById('btn-confirmar-eliminar').addEventListener('click', () => {
+            if (!registroAEliminar) return;
+
+            const transaction = db.transaction([storeName], "readwrite");
+            const store = transaction.objectStore(storeName);
+            const request = store.delete(registroAEliminar);
+
+            request.onsuccess = () => {
+                cerrarModalConfirmacion();
+                cargarDatosEnInterfaz();
+                showToast("Registro eliminado.");
+            };
+
+            request.onerror = () => {
+                cerrarModalConfirmacion();
+                showToast("Error al eliminar.", "error");
+            };
+        });
+
+        // --- BUSCADOR ---
+        async function buscarRegistros() {
+            const query = document.getElementById('buscador').value.toLowerCase().trim();
+            const registros = await getAllRecords();
+            
+            const filtrados = registros.filter(r => {
+                if (!query) return true;
+                const notaMatch = (r.nota || '').toLowerCase().includes(query);
+                const catMatch = r.categoria.toLowerCase().includes(query);
+                const montoMatch = r.monto.toString().includes(query);
+                return notaMatch || catMatch || montoMatch;
+            });
+            
+            renderizarHistorial(filtrados);
+        }
+
+        async function cargarDatosEnInterfaz() {
+            try {
+                const registros = await getAllRecords();
+                // Ordenar más recientes primero
+                registros.sort((a, b) => new Date(b.fecha) - new Date(a.fecha) || b.id - a.id);
+                
+                calcularSaldos(registros);
+                
+                // Si hay una búsqueda activa, aplicarla. Si no, mostrar todo.
+                const query = document.getElementById('buscador').value;
+                if(query) {
+                    buscarRegistros();
+                } else {
+                    renderizarHistorial(registros);
+                }
+
+                // Actualizar gráficos si esa pestaña está activa
+                if(!document.getElementById('vista-graficos').classList.contains('hidden')) {
+                    renderizarGraficos();
+                }
+
+            } catch (error) {
+                console.error("Error cargando datos:", error);
+                showToast("Error leyendo datos", "error");
+            }
+        }
+
+        function calcularSaldos(registros) {
+            const hoy = new Date();
+            const mesActual = hoy.getMonth();
+            const anioActual = hoy.getFullYear();
+
+            let saldoTotal = 0;
+            let ingresosMes = 0;
+            let gastosMes = 0;
+
+            registros.forEach(reg => {
+                // Ajustar zona horaria para la comparación de mes
+                const [year, month, day] = reg.fecha.split('-');
+                const fechaReg = new Date(year, month - 1, day); 
+                
+                const esMesActual = fechaReg.getMonth() === mesActual && fechaReg.getFullYear() === anioActual;
+
+                if (reg.tipo === 'ingreso') {
+                    saldoTotal += reg.monto;
+                    if (esMesActual) ingresosMes += reg.monto;
+                } else {
+                    saldoTotal -= reg.monto;
+                    if (esMesActual) gastosMes += reg.monto;
+                }
+            });
+
+            document.getElementById('saldo-total').textContent = formatoMoneda.format(saldoTotal);
+            document.getElementById('total-ingresos-mes').textContent = formatoMoneda.format(ingresosMes);
+            document.getElementById('total-gastos-mes').textContent = formatoMoneda.format(gastosMes);
+        }
+
+        function renderizarHistorial(registros) {
+            const contenedor = document.getElementById('lista-historial');
+            const contador = document.getElementById('contador-registros');
+            
+            contenedor.innerHTML = '';
+            contador.textContent = `${registros.length} registro${registros.length !== 1 ? 's' : ''}`;
+            
+            if (registros.length === 0) {
+                contenedor.innerHTML = `
+                    <div class="text-center py-10">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 mb-4">
+                            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        </div>
+                        <p class="text-gray-500 font-medium">No hay movimientos encontrados.</p>
+                        <p class="text-sm text-gray-400 mt-1">Usa el botón + para agregar uno nuevo.</p>
+                    </div>`;
+                return;
+            }
+
+            // Agrupar por mes y año para separadores visuales
+            let mesActualStr = '';
+
+            registros.forEach(reg => {
+                // Configurar fecha
+                const [year, month, day] = reg.fecha.split('-');
+                const fechaObj = new Date(year, month - 1, day);
+                const mesAnioReg = fechaObj.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                
+                // Añadir separador si cambiamos de mes
+                if (mesAnioReg !== mesActualStr) {
+                    const sep = document.createElement('div');
+                    sep.className = 'text-xs font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 py-1 px-2 rounded-md my-2 sticky top-0 z-10 capitalize';
+                    sep.textContent = mesAnioReg;
+                    contenedor.appendChild(sep);
+                    mesActualStr = mesAnioReg;
+                }
+
+                const esIngreso = reg.tipo === 'ingreso';
+                
+                const div = document.createElement('div');
+                div.className = 'group flex justify-between items-center p-3 hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100 relative';
+                
+                const colorTexto = esIngreso ? 'text-emerald-600' : 'text-gray-900';
+                const signo = esIngreso ? '+' : '-';
+                const icon = esIngreso 
+                    ? `<div class="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path></svg></div>`
+                    : `<div class="p-2.5 bg-rose-100 text-rose-600 rounded-xl"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"></path></svg></div>`;
+                
+                const dia = fechaObj.getDate();
+                const diaStr = dia < 10 ? '0'+dia : dia;
+                const diaSemana = fechaObj.toLocaleDateString('es-ES', { weekday: 'short' }).substring(0,3);
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        ${icon}
+                        <div>
+                            <strong class="block text-gray-800 font-semibold text-sm sm:text-base leading-tight">${reg.categoria}</strong>
+                            <span class="text-xs text-gray-500 mt-0.5 block flex items-center gap-1">
+                                <span class="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase">${diaSemana} ${diaStr}</span>
+                                ${reg.nota ? `<span class="truncate max-w-[100px] sm:max-w-[200px] inline-block align-bottom">${reg.nota}</span>` : ''}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                        <div class="font-bold ${colorTexto} text-sm sm:text-base whitespace-nowrap">
+                            ${signo}${formatoMoneda.format(reg.monto)}
+                        </div>
+                        <div class="flex opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity gap-1">
+                            <button onclick="abrirModalRegistro(${reg.id})" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Editar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            </button>
+                            <button onclick="confirmarEliminar(${reg.id})" class="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors" title="Eliminar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                contenedor.appendChild(div);
+            });
+        }
+
+        async function renderizarGraficos() {
+            const registros = await getAllRecords();
+            if (registros.length === 0) return;
+
+            renderizarGraficoMeses(registros);
+            renderizarGraficoCategorias(registros);
+        }
+
+        function renderizarGraficoMeses(registros) {
+            const ctx = document.getElementById('graficoMeses').getContext('2d');
+            
+            // Agrupar por mes (últimos 6)
+            const datosPorMes = {};
+            const mesesNombres = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+            
+            registros.forEach(reg => {
+                const [year, month, day] = reg.fecha.split('-');
+                const mesKey = `${mesesNombres[parseInt(month)-1]} ${year}`;
+                const sortKey = parseInt(year) * 100 + parseInt(month);
+                
+                if (!datosPorMes[mesKey]) {
+                    datosPorMes[mesKey] = { ingreso: 0, gasto: 0, sortKey: sortKey };
+                }
+                
+                if (reg.tipo === 'ingreso') datosPorMes[mesKey].ingreso += reg.monto;
+                else datosPorMes[mesKey].gasto += reg.monto;
+            });
+
+            // Ordenar y limitar a 6 meses
+            const mesesOrdenados = Object.keys(datosPorMes)
+                .sort((a, b) => datosPorMes[a].sortKey - datosPorMes[b].sortKey)
+                .slice(-6);
+
+            const labels = mesesOrdenados;
+            const dataIngresos = mesesOrdenados.map(mes => datosPorMes[mes].ingreso);
+            const dataGastos = mesesOrdenados.map(mes => datosPorMes[mes].gasto);
+
+            if (graficoMesesInstancia) graficoMesesInstancia.destroy();
+
+            graficoMesesInstancia = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Ingresos', data: dataIngresos, backgroundColor: '#10B981', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 },
+                        { label: 'Gastos', data: dataGastos, backgroundColor: '#EF4444', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { display: false, beginAtZero: true }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatoMoneda.format(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderizarGraficoCategorias(registros) {
+            const ctx = document.getElementById('graficoCategorias').getContext('2d');
+            
+            const hoy = new Date();
+            const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+            
+            const gastosMesActual = registros.filter(r => r.tipo === 'gasto' && r.fecha.startsWith(mesActualStr));
+            
+            const agrupado = {};
+            gastosMesActual.forEach(r => {
+                agrupado[r.categoria] = (agrupado[r.categoria] || 0) + r.monto;
+            });
+
+            // Ordenar categorías de mayor a menor gasto
+            const categoriasOrdenadas = Object.keys(agrupado).sort((a, b) => agrupado[b] - agrupado[a]);
+            const labels = categoriasOrdenadas;
+            const data = categoriasOrdenadas.map(c => agrupado[c]);
+
+            const colores = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE', '#E0E7FF', '#F3F4F6'];
+
+            if (graficoCategoriasInstancia) graficoCategoriasInstancia.destroy();
+
+            if (data.length === 0) {
+                 // Chart vacío si no hay gastos
+                 graficoCategoriasInstancia = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels: ['Sin datos'], datasets: [{ data: [1], backgroundColor: ['#F3F4F6'] }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false } } }
+                });
+                return;
+            }
+
+            graficoCategoriasInstancia = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colores.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.chart._metasets[context.datasetIndex].total;
+                                    const value = context.parsed;
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${context.label}: ${formatoMoneda.format(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function abrirModalExportarImportar() {
+            document.getElementById('modal-datos').classList.remove('hidden');
+        }
+
+        function cerrarModalExportarImportar() {
+            document.getElementById('modal-datos').classList.add('hidden');
+        }
+
+        async function exportarDatos() {
+            try {
+                const registros = await getAllRecords();
+                const dataStr = JSON.stringify({ version: 1, registros: registros }, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                
+                const url = URL.createObjectURL(dataBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                const fecha = new Date().toISOString().split('T')[0];
+                a.download = `MiDinero_Respaldo_${fecha}.json`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                cerrarModalExportarImportar();
+                showToast("Copia de seguridad descargada.");
+            } catch (error) {
+                console.error("Error exportando:", error);
+                showToast("Error al exportar los datos", "error");
+            }
+        }
+
+        function procesarImportacion(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const contenido = JSON.parse(e.target.result);
+                    
+                    if (!contenido.registros || !Array.isArray(contenido.registros)) {
+                        throw new Error("Formato de archivo inválido.");
+                    }
+
+                    // Limpiar BD actual e insertar nuevos
+                    const transaction = db.transaction([storeName], "readwrite");
+                    const store = transaction.objectStore(storeName);
+                    
+                    store.clear().onsuccess = () => {
+                        let completados = 0;
+                        const total = contenido.registros.length;
+                        
+                        if(total === 0) {
+                            finalizarImportacion();
+                            return;
+                        }
+
+                        contenido.registros.forEach(reg => {
+                            const req = store.add(reg);
+                            req.onsuccess = () => {
+                                completados++;
+                                if(completados === total) finalizarImportacion();
+                            };
+                            req.onerror = () => {
+                                throw new Error("Error insertando registro.");
+                            };
+                        });
+                    };
+
+                } catch (error) {
+                    console.error("Error importando:", error);
+                    showToast("Error al leer el archivo. Verifica el formato.", "error");
+                }
+                
+                // Reset input file
+                event.target.value = '';
+            };
+            
+            reader.readAsText(file);
+        }
+
+        function finalizarImportacion() {
+            cerrarModalExportarImportar();
+            cargarDatosEnInterfaz();
+            showToast("Datos importados exitosamente.");
+        }
+
+    </script>
+</body>
+</html>
